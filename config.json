@@ -1,0 +1,24 @@
+{
+  "deviceName": "F9_BT",
+  "writeCharUUID": "",
+  "notifyCharUUID": "",
+  "pollMs": 3000,
+  "reapplyMs": 6000,
+  "lightModes": [
+    3,
+    2,
+    1,
+    0
+  ],
+  "speeds": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "fanModeAI": 1,
+  "fanModeFixed": 0,
+  "colorCount": 1,
+  "brightnessOffset": 2,
+  "writeWithoutResponse": false
+}
