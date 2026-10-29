@@ -1,5 +1,7 @@
 # 风刃 F9 蓝牙控制器
 
+<img src="docs/images/icon.png" width="88" align="right" alt="图标">
+
 [![Go](https://img.shields.io/badge/Go-1.21%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#运行要求)
