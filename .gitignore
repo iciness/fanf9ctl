@@ -1,0 +1,22 @@
+# 编译产物
+*.exe
+*.syso.tmp
+dist/
+
+# 运行时生成
+state.json
+*.log
+
+# Go 构建缓存（如果设到工程内）
+.gocache/
+.gotmp/
+.gomod/
+.gobin/
+.gopath/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
