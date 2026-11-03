@@ -557,7 +557,8 @@ func (g *guiApp) paintAll(hdc uintptr, w, h int32) {
 		status, sc = "模拟模式", colAccent
 	}
 	if snap.LastError != "" {
-		status, sc = "连接失败", colDanger
+		// 没连上时后台每 5 秒自动重试，标出来免得以为程序卡住了
+		status, sc = "连接失败 · 重试中", colDanger
 	}
 	connLabel := "连 接"
 	if snap.Connected {

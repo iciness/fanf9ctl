@@ -112,24 +112,38 @@ type Controller struct {
 	statePath string
 
 	devices []DeviceInfo
+
+	// 连接意图：用户在界面上点「连接」后为 true，点「断开」后为 false。
+	// 掉线或开机时没连上，只要意图还是 true 就自动重试。
+	wantConnected bool
+	connecting    bool
+	match         string
+	quiet         bool // 自动重试期间不刷日志
+	sendFails     int  // 连续写失败次数，够了就判定链路已断
 }
 
 // NewController 创建控制器。
 // NewController 创建控制器。initial 是上次保存的设置（没有就传 defaultSettings）。
 // restored 为 true 表示这是用户上次的选择，连上后要主动下发、而不是按设备现状覆盖。
 func NewController(cfg *Config, sim bool, initial Settings, restored bool) *Controller {
-	return &Controller{
-		cfg:       cfg,
-		sim:       sim,
-		settings:  initial,
-		lastSaved: initial,
-		restored:  restored,
-		logs:      make([]LogEntry, 0, 256),
-		status:    "未连接",
+	c := &Controller{
+		cfg:           cfg,
+		sim:           sim,
+		settings:      initial,
+		lastSaved:     initial,
+		restored:      restored,
+		logs:          make([]LogEntry, 0, 256),
+		status:        "未连接",
+		wantConnected: true,
 	}
+	go c.retryLoop()
+	return c
 }
 
 func (c *Controller) addLog(dir, data, note string) {
+	if c.quiet {
+		return
+	}
 	c.logs = append(c.logs, LogEntry{
 		T:    time.Now().Format("15:04:05.000"),
 		Dir:  dir,
@@ -182,15 +196,28 @@ func (c *Controller) Connect(match string) error {
 		c.mu.Unlock()
 		return fmt.Errorf("已经连接")
 	}
+	if c.connecting {
+		c.mu.Unlock()
+		return fmt.Errorf("正在连接中")
+	}
+	c.connecting = true
+	c.wantConnected = true
+	c.match = match
 	sim := c.sim
 	c.status = "正在连接…"
 	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.connecting = false
+		c.mu.Unlock()
+	}()
 
 	if sim {
 		lk := newSimLink()
 		c.mu.Lock()
 		c.lk = lk
 		c.status = "已连接（模拟设备）"
+		c.lastErr = ""
 		c.addLog("SYS", "sim", "模拟链路已建立")
 		c.mu.Unlock()
 		go c.readLoop(lk)
@@ -270,6 +297,8 @@ func (c *Controller) Connect(match string) error {
 	c.mu.Lock()
 	c.lk = conn
 	c.status = "已连接"
+	c.lastErr = "" // 连上了就把之前的失败提示清掉
+	c.sendFails = 0
 	c.addLog("SYS", conn.Address, fmt.Sprintf("写=%s 通知=%s", conn.WriteUUID(), conn.NotifyUUID()))
 	c.mu.Unlock()
 
@@ -308,8 +337,11 @@ func shortAddr(a string) string { return strings.ReplaceAll(a, ":", "") }
 func (c *Controller) fail(msg string) {
 	c.mu.Lock()
 	c.status = "未连接"
+	changed := msg != c.lastErr
 	c.lastErr = msg
-	c.addLog("ERR", "", msg)
+	if changed {
+		c.addLog("ERR", "", msg)
+	}
 	c.mu.Unlock()
 }
 
@@ -320,6 +352,8 @@ func (c *Controller) Disconnect() {
 	c.lk = nil
 	c.status = "未连接"
 	c.rpm = 0
+	c.wantConnected = false
+	c.lastErr = ""
 	if c.stopCh != nil {
 		close(c.stopCh)
 		c.stopCh = nil
@@ -335,15 +369,69 @@ func (c *Controller) Disconnect() {
 func (c *Controller) send(lk link, f Frame, note string) error {
 	if err := lk.Write(f[:]); err != nil {
 		c.mu.Lock()
+		c.sendFails++
+		fails := c.sendFails
 		c.lastErr = err.Error()
 		c.addLog("ERR", f.Hex(), note+" 失败: "+err.Error())
 		c.mu.Unlock()
+		if fails >= 3 {
+			// 连续写失败基本就是设备关机/走远了，主动断开让自动重连接手
+			c.dropLink(lk, "连续 3 次写入失败，判定链路已断开")
+		}
 		return err
 	}
 	c.mu.Lock()
+	c.sendFails = 0
 	c.addLog("TX", f.Hex(), note)
 	c.mu.Unlock()
 	return nil
+}
+
+// dropLink 是「被动断开」：清掉链路但保留连接意图，交给 retryLoop 重连。
+func (c *Controller) dropLink(lk link, reason string) {
+	c.mu.Lock()
+	if c.lk != lk {
+		c.mu.Unlock()
+		return
+	}
+	c.lk = nil
+	c.rpm = 0
+	c.sendFails = 0
+	c.status = "连接已断开"
+	c.addLog("ERR", "", reason)
+	if c.stopCh != nil {
+		close(c.stopCh)
+		c.stopCh = nil
+	}
+	c.mu.Unlock()
+	_ = lk.Close()
+}
+
+// retryLoop 在「想连但没连上」时每 5 秒自动重试一次。
+// 开机时散热器还没上电、或者中途关机再开，都不用手动点「连接」。
+func (c *Controller) retryLoop() {
+	for {
+		time.Sleep(5 * time.Second)
+		c.mu.Lock()
+		need := c.wantConnected && c.lk == nil && !c.connecting && !c.sim
+		match := c.match
+		if need {
+			c.quiet = true // 重试过程不刷屏
+		}
+		c.mu.Unlock()
+		if !need {
+			continue
+		}
+
+		err := c.Connect(match)
+
+		c.mu.Lock()
+		c.quiet = false
+		if err == nil {
+			c.addLog("SYS", "", "自动重连成功")
+		}
+		c.mu.Unlock()
+	}
 }
 
 // readLoop 消费通知。
