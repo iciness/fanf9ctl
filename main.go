@@ -21,6 +21,9 @@ import (
 	"time"
 )
 
+// version 由编译期注入：-ldflags "-X main.version=1.0.1"，没注入时是 dev。
+var version = "dev"
+
 func main() {
 	var (
 		cfgPath  = flag.String("config", "", "配置文件路径（默认 exe 同目录 config.json）")
@@ -30,8 +33,14 @@ func main() {
 		list     = flag.Bool("list", false, "只列出系统中的 BLE 设备后退出")
 		diag     = flag.Bool("diag", false, "枚举 GATT 服务/特征并尝试订阅后退出（排错用）")
 		debug    = flag.Bool("debug", false, "显示日志控制台窗口")
+		showVer  = flag.Bool("version", false, "打印版本号后退出")
 	)
 	flag.Parse()
+	if *showVer {
+		ensureConsole()
+		fmt.Println("fanf9ctl", version)
+		return
+	}
 
 	// 正常启动是纯 GUI（-H windowsgui），不出现黑框；
 	// -debug 单独开一个日志窗口，命令行模式则复用/附加控制台

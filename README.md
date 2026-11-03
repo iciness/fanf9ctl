@@ -62,6 +62,7 @@ fanf9ctl.exe -device LEGION_F9_BT   :: 指定设备
 | `-debug` | 打开日志控制台窗口 |
 | `-device` | 覆盖设备名或地址 |
 | `-config` | 指定配置文件路径（默认 exe 同目录 `config.json`） |
+| `-version` | 打印版本号后退出 |
 
 ## 配置文件
 
@@ -176,7 +177,7 @@ build.bat
 或者手动：
 
 ```bat
-go build -trimpath -ldflags "-s -w -H windowsgui" -o fanf9ctl.exe .
+go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=1.0.1" -o fanf9ctl.exe .
 ```
 
 `-H windowsgui` 让程序成为 GUI 子系统（双击无黑框）。`rsrc_windows_amd64.syso` 提供 exe 文件图标，

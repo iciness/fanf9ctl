@@ -272,7 +272,7 @@ func runGUI(ctl *Controller, device string, startHidden bool) {
 	}
 
 	// 先按 96 DPI 建窗，拿到窗口所在显示器的真实 DPI 后再放大并重排。
-	title, _ := syscall.UTF16PtrFromString("风刃F9 控制台")
+	title, _ := syscall.UTF16PtrFromString("风刃F9 控制台 " + version)
 	g.hwnd, _, _ = pCreateWindowExW.Call(0,
 		uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(title)),
 		wsOverlappedWindow, cwUseDefault, cwUseDefault,
@@ -362,7 +362,7 @@ func (g *guiApp) windowScale() float64 {
 func showFatal(msg string) {
 	log.Printf("%s", msg)
 	u, _ := syscall.UTF16PtrFromString(msg)
-	t, _ := syscall.UTF16PtrFromString("风刃F9 控制台")
+	t, _ := syscall.UTF16PtrFromString("风刃F9 控制台 " + version)
 	pMessageBoxW.Call(0, uintptr(unsafe.Pointer(u)), uintptr(unsafe.Pointer(t)), 0x10)
 }
 

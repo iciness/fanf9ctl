@@ -28,7 +28,11 @@ jobs:
         run: go test ./...
 
       - name: build (GUI subsystem)
-        run: go build -trimpath -ldflags "-s -w -H windowsgui" -o fanf9ctl.exe .
+        shell: pwsh
+        run: |
+          $ver = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF -replace '^refs/tags/v','' } else { 'dev' }
+          Write-Host "version = $ver"
+          go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=$ver" -o fanf9ctl.exe .
 
       - name: upload artifact
         uses: actions/upload-artifact@v4
